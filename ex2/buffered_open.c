@@ -1,9 +1,12 @@
 // Yuval Anteby 212152896
+
 #include "buffered_open.h"
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <unistd.h> 
+#include <fcntl.h> 
 
 // Function to wrap the original open function
 buffered_file_t *buffered_open(const char *pathname, int flags, ...) {

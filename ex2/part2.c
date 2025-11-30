@@ -7,23 +7,46 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <time.h>
+#include <string.h>
 
 #define LOCK_FILE "lockfile.lock"
 
 /**
- * The prrovided function by TAs to write messages with random delays
+ * The provided function by TAs to write messages with random delays
+ * Refactored to use 'write' instead of 'printf'
  * @param message the message to write
  * @param count amount of times to write the message
  */
 void write_message(const char *message, int count) {
+    // Prepare the message buffer once to avoid repeated mallocs inside the loop
+    size_t len = strlen(message);
+    // +1 for newline, +1 for null
+    char *full_msg = (char *)malloc(len + 2); 
+    if (full_msg == NULL) {
+        perror("malloc failed");
+        exit(1);
+    }
+    strcpy(full_msg, message);
+    full_msg[len] = '\n';
+    full_msg[len + 1] = '\0';
+    size_t write_len = len + 1;
+
     for (int i = 0; i < count; i++) {
-        printf("%s\n", message);
+        // Write directly to file descriptor 1 (STDOUT)
+        if (write(STDOUT_FILENO, full_msg, write_len) != write_len) {
+            perror("write error");
+            free(full_msg);
+            exit(1);
+        }
         // Random delay between 0 and 99 milliseconds
         usleep((rand() % 100) * 1000); 
     }
+    free(full_msg);
 }
 
-// Function to acquire the lock
+/**
+ * Function to acquire the lock
+ */ 
 void acquire_lock() {
     int fd;
     // Try to create the lock file exclusively
@@ -72,8 +95,9 @@ void child_process(const char *message, int count, int child_num) {
 }
 
 int main(int argc, char *argv[]) {
-    // Check command-line arguments (at least 3 messages + count)
+    // Check command line arguments (at least 3 messages + count)
     if (argc < 5) {
+        // Changed printf to fprintf(stderr) for error reporting
         fprintf(stderr, "Usage: %s <message1> <message2> <message3> ... <count>\n", argv[0]);
         return 1;
     }
@@ -83,7 +107,7 @@ int main(int argc, char *argv[]) {
     
     // Validate count
     if (count <= 0) {
-        fprintf(stderr, "Error: count must be a positive integer\n");
+        printf("Error: count must be a positive integer\n");
         return 1;
     }
 
