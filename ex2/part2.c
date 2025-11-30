@@ -12,61 +12,37 @@
 #define LOCK_FILE "lockfile.lock"
 
 /**
- * The provided function by TAs to write messages with random delays
- * Refactored to use 'write' instead of 'printf'
- * @param message the message to write
- * @param count amount of times to write the message
+ * writes a message to STDOUT
+ * @param message the text to print to STDOUT
+ * @param count the number of times to print it
  */
 void write_message(const char *message, int count) {
-    // Prepare the message buffer once to avoid repeated mallocs inside the loop
-    size_t len = strlen(message);
-    // +1 for newline, +1 for null
-    char *full_msg = (char *)malloc(len + 2); 
-    if (full_msg == NULL) {
-        perror("malloc failed");
-        exit(1);
-    }
-    strcpy(full_msg, message);
-    full_msg[len] = '\n';
-    full_msg[len + 1] = '\0';
-    size_t write_len = len + 1;
-
     for (int i = 0; i < count; i++) {
-        // Write directly to file descriptor 1 (STDOUT)
-        if (write(STDOUT_FILENO, full_msg, write_len) != write_len) {
-            perror("write error");
-            free(full_msg);
-            exit(1);
-        }
-        // Random delay between 0 and 99 milliseconds
-        usleep((rand() % 100) * 1000); 
+        printf("%s\n", message);
+        usleep((rand() % 100) * 1000); // Random delay between 0 and 99 milliseconds
     }
-    free(full_msg);
 }
 
 /**
- * Function to acquire the lock
+ * atomic lock acquisition using O_EXCL
  */ 
 void acquire_lock() {
     int fd;
-    // Try to create the lock file exclusively
+    // O_EXCL makes sure that open() fails if the file already exists
     while ((fd = open(LOCK_FILE, O_CREAT | O_EXCL | O_WRONLY, 0644)) == -1) {
         if (errno == EEXIST) {
-            // Lock file exists, another process has the lock
-            // Wait a bit and try again
-            usleep(10000); // Sleep for 10 milliseconds
+            usleep(10000); // 10ms interval
         } else {
-            // Some other error occurred
-            perror("Error acquiring lock");
+            perror("error acquiring lock");
             exit(1);
         }
     }
-    // Successfully created lock file, we have the lock
+    // If reached here, successfully created the file and hold the lock
     close(fd);
 }
 
 /**
- * Function to release the lock
+ * release lock by unlinking the file (which is like deleting the file)
  */
 void release_lock() {
     if (unlink(LOCK_FILE) == -1) {
@@ -76,91 +52,67 @@ void release_lock() {
 }
 
 /**
- * Child process function
+ * Child logic
  */
-void child_process(const char *message, int count, int child_num) {
-    // Seed random number generator with unique value per process
+void child_process(const char *message, int count) {
+    // Seed randomness using PID to ensure different seeds per child
     srand(time(NULL) ^ (getpid() << 16));
     
-    // Acquire the lock before writing
+    // --- CS ENTRY ---
     acquire_lock();
     
-    // Critical section: write to stdout
+    // Writing to STDOUT
     write_message(message, count);
     
-    // Release the lock after writing
+    // --- CS EXIT ---
     release_lock();
     
+    // sucess, exit the child process
     exit(0);
 }
 
 int main(int argc, char *argv[]) {
-    // Check command line arguments (at least 3 messages + count)
-    if (argc < 5) {
-        // Changed printf to fprintf(stderr) for error reporting
-        fprintf(stderr, "Usage: %s <message1> <message2> <message3> ... <count>\n", argv[0]);
+    if (argc < 4) {
+        fprintf(stderr, "Usage: %s <msg1> <msg2> ... <count>\n", argv[0]);
         return 1;
     }
 
-    // Parse count (last argument)
+    // Last argument is the count
     int count = atoi(argv[argc - 1]);
-    
-    // Validate count
     if (count <= 0) {
-        printf("Error: count must be a positive integer\n");
+        fprintf(stderr, "Error: count must be positive\n");
         return 1;
     }
 
-    // Number of child processes = number of messages
-    int num_children = argc - 2; // Exclude program name and count
-    
-    // Remove any existing lock file before starting
+    // Number of message arguments
+    int num_children = argc - 2; 
+
+    // to prevent an oopsi moment when i rerun it
     unlink(LOCK_FILE);
     
-    // Array to store child PIDs
-    pid_t *child_pids = malloc(num_children * sizeof(pid_t));
-    if (child_pids == NULL) {
-        perror("Error allocating memory");
-        return 1;
-    }
-    
-    // Fork children in a loop
+    // Forking Loop to get all possible child processes texts
     for (int i = 0; i < num_children; i++) {
         pid_t pid = fork();
         
         if (pid < 0) {
-            perror("Error forking child");
-            free(child_pids);
+            perror("fork failed");
             return 1;
         }
         
         if (pid == 0) {
-            // Child process
-            free(child_pids); // Child doesn't need this
-            child_process(argv[i + 1], count, i + 1);
-            // child_process calls exit(), so we never reach here
+            // argv[i+1] is the specific message for this child
+            child_process(argv[i + 1], count);
         }
-        
-        // Parent stores the child PID
-        child_pids[i] = pid;
     }
     
-    // Parent waits for all children to complete
+    // Parent waits for all children
     for (int i = 0; i < num_children; i++) {
-        int status;
-        pid_t finished_pid = wait(&status);
-        
-        if (finished_pid == -1) {
-            perror("Error waiting for child");
-            free(child_pids);
-            return 1;
+        if (wait(NULL) == -1) {
+            perror("wait error");
         }
     }
     
-    // Clean up
-    free(child_pids);
-    
-    // Ensure lock file is removed (in case of any issues)
+    // again to prevent an oopsi moment 
     unlink(LOCK_FILE);
     
     return 0;
