@@ -1,0 +1,14 @@
+producer 1 NEWS 0
+producer 1 NEWS 1
+producer 1 NEWS 2
+producer 1 NEWS 3
+producer 2 NEWS 0
+producer 2 NEWS 1
+producer 2 NEWS 2
+producer 2 NEWS 3
+producer 2 NEWS 4
+producer 2 NEWS 5
+producer 2 NEWS 6
+producer 2 NEWS 7
+producer 2 NEWS 8
+DONE
