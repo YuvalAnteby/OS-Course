@@ -92,7 +92,7 @@ void* producer(void* arg) {
     int sport = 0, news = 0, wheather = 0;
     ForProducer *forProd = (ForProducer*)arg;
     BoundedBuffer* buffer = forProd->buf;
-    srand(time(NULL));
+    //srand(time(NULL));
     int mes = forProd->messages;
 
     for (int i = 0; i < mes; i++) {
@@ -131,49 +131,49 @@ void* dispatcherFunc(void* arg) {
     BoundedBuffer* sportBuf = allTheBufs->sportBuf;
     BoundedBuffer* newsBuf = allTheBufs->newsBuf;
     BoundedBuffer* wheatherBuf = allTheBufs->wheatherBuf;
-    int doneCount = 0;
+    //int doneCount = 0;
 
-    while (1) {
+while (1) {
+        int allProducersDone = 1; // Assume done until we find an active one
+
         for (int i = 0; i < allTheBufs->producersCount; i++) {
-            if (producersBufs[i]->isDone) continue;
+            // Even if marked done, we must check if there are leftover messages in the buffer
+            if (producersBufs[i]->isDone) {
+                // If done AND empty, skip. If done but has items, we must process them.
+                if (isBufferEmpty(producersBufs[i])) { 
+                   continue; 
+                }
+            } else {
+                allProducersDone = 0; // Found an active producer
+            }
+
+            // USE NON-BLOCKING REMOVE
+            char* message = tryRemoveFromBuffer(producersBufs[i]);
             
-            char* message;
-            message = removeFromBuffer(producersBufs[i]);
-            if (strcmp(message, FINISH_MSG) == 0) {
-                doneCount++;
-                producersBufs[i]->isDone = 1;
-                if (doneCount == allTheBufs->producersCount) {
-                    insertToBuffer(sportBuf, message);
-                    insertToBuffer(newsBuf, message);
-                    insertToBuffer(wheatherBuf, message);
-                    return NULL;
-                }
-            } else { 
-                char type = message[11];
-                switch (type) {
-                    // Insert into sport buffer
-                    case 'S':
+            if (message != NULL) {
+                if (strcmp(message, FINISH_MSG) == 0) {
+                    producersBufs[i]->isDone = 1;
+                } else {
+                    // SAFER PARSING
+                    if (strstr(message, "SPORTS")) {
                         insertToBuffer(sportBuf, message);
-                        break;
-                    // Insert into news buffer
-                    case 'N':
+                    } else if (strstr(message, "NEWS")) {
                         insertToBuffer(newsBuf, message);
-                        break;
-                    // Insert into wheather buffer
-                    case 'W':
+                    } else if (strstr(message, "WEATHER")) {
                         insertToBuffer(wheatherBuf, message);
-                        break;
-                    // Something wrong
-                    default:
-                        printf("Probably aint gonna happen I hope\n");
-                        break;
+                    }
                 }
-                
             }
         }
+        
+        // Only exit if all are effectively done
+        if (allProducersDone) {
+            insertToBuffer(sportBuf, FINISH_MSG);
+            insertToBuffer(newsBuf, FINISH_MSG);
+            insertToBuffer(wheatherBuf, FINISH_MSG);
+            return NULL;
+        }
     }
-
-    pthread_exit(EXIT_SUCCESS);
 }
 
 void parseConfigFile(FILE *file, ConfigData* data) {
@@ -255,6 +255,8 @@ int main(int argc, char* argv[]) {
         printf("Give me a file to parse\n");
         return 1;
     }
+
+    srand(time(NULL)); // MOVED HERE
 
     // Open config file
     FILE *file = fopen(argv[1], "r");

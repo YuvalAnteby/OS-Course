@@ -34,6 +34,8 @@ int insertToBuffer(BoundedBuffer *bb, char *msg);
 // Removes a message from the buffer
 char* removeFromBuffer(BoundedBuffer* bb);
 
+char* tryRemoveFromBuffer(BoundedBuffer* bb);
+
 // Checks if the buffer is empty
 int isBufferEmpty(BoundedBuffer* bb);
 

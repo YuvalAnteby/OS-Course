@@ -60,6 +60,21 @@ char* removeFromBuffer(BoundedBuffer* bb) {
     return msgToReturn;
 }
 
+char* tryRemoveFromBuffer(BoundedBuffer* bb) {
+    // If the semaphore is 0, return NULL immediately (don't block)
+    if (sem_trywait(&bb->readSemaphore) != 0) {
+        return NULL; 
+    }
+    
+    pthread_mutex_lock(&bb->lock);
+    char *msgToReturn = bb->buffer[bb->head];
+    bb->head = (bb->head + 1) % bb->size;
+    pthread_mutex_unlock(&bb->lock);
+    
+    sem_post(&bb->writeSemaphore);
+    return msgToReturn;
+}
+
 /**
  * Checks if the buffer is empty
  * @param bb pointer to the buffer
