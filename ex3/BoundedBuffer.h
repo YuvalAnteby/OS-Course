@@ -1,41 +1,40 @@
+// Yuval Anteby 212152896
+
 #ifndef BOUNDED_BUFFER_H
 #define BOUNDED_BUFFER_H
 
-#include <queue>
-#include <string>
-#include <mutex>
-#include <condition_variable>
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>
 
-// --- Semaphore Declaration ---
-class Semaphore {
-private:
-    std::mutex mtx;
-    std::condition_variable cv;
-    int count;
+#define FINISH_MSG "DONE"
 
-public:
-    Semaphore(int init_count = 0);
-    void down();
-    void up();
-};
+/**
+ * Struct for a bounded buffer of the  producer consumer
+*/
+typedef struct BoundedBuffer {
+    char **buffer;
+    int size;
+    int head;
+    int tail;
+    int id;
+    int isDone;
+    pthread_mutex_t lock;
+    sem_t writeSemaphore;
+    sem_t readSemaphore;
+} BoundedBuffer;
 
-// --- Bounded Buffer Declaration ---
-class BoundedBuffer {
-private:
-    std::queue<std::string> q;
-    int capacity;
-    Semaphore* mutex; // Binary semaphore for mutual exclusion
-    Semaphore* full;  // Counting semaphore for items count
-    Semaphore* empty; // Counting semaphore for empty slots
+// Initializes the buffer
+BoundedBuffer* initBuffer(int bufferSize, int id);
 
-public:
-    BoundedBuffer(int size);
-    ~BoundedBuffer();
-    void insert(std::string s);
-    std::string remove();
-    
-    // Helper accessors
-    int size();
-};
+// Inserts a new message to the buffer
+int insertToBuffer(BoundedBuffer *bb, char *msg);
+
+// Removes a message from the buffer
+char* removeFromBuffer(BoundedBuffer* bb);
+
+// Checks if the buffer is empty
+int isBufferEmpty(BoundedBuffer* bb);
 
 #endif
