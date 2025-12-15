@@ -39,4 +39,7 @@ char* tryRemoveFromBuffer(BoundedBuffer* bb);
 // Checks if the buffer is empty
 int isBufferEmpty(BoundedBuffer* bb);
 
+// Destroys the buffer and frees memory
+void destroyBuffer(BoundedBuffer* bb);
+
 #endif

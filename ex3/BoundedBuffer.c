@@ -16,9 +16,12 @@ BoundedBuffer* initBuffer(int bufferSize, int id) {
     bb->tail = 0;
     bb->id = id;
     bb->isDone = 0;
+
     pthread_mutex_init(&bb->lock, NULL);
-    sem_init(&bb->readSemaphore, 1, 0);
-    sem_init(&bb->writeSemaphore, 1, bufferSize);
+    
+    sem_init(&bb->readSemaphore, 0, 0);
+    sem_init(&bb->writeSemaphore, 0, bufferSize);
+
     return bb; 
 }
 
@@ -60,6 +63,11 @@ char* removeFromBuffer(BoundedBuffer* bb) {
     return msgToReturn;
 }
 
+/**
+ * Tries to remove a message from the buffer without blocking
+ * @param bb pointer to the buffer
+ * @return the removed message, or NULL if the buffer is empty
+ */
 char* tryRemoveFromBuffer(BoundedBuffer* bb) {
     // If the semaphore is 0, return NULL immediately (don't block)
     if (sem_trywait(&bb->readSemaphore) != 0) {
@@ -81,7 +89,22 @@ char* tryRemoveFromBuffer(BoundedBuffer* bb) {
  * @return 1 if the buffer is empty, 0 otherwise
 */
 int isBufferEmpty(BoundedBuffer* bb) {
-    if (bb->head == bb->tail) 
-        return 1;
-    return 0;
+    pthread_mutex_lock(&bb->lock);
+    int empty = (bb->head == bb->tail);
+    pthread_mutex_unlock(&bb->lock);
+    return empty;
+}
+
+/**
+ * Destroys the buffer and frees memory
+ * @param bb pointer to the buffer
+ */
+void destroyBuffer(BoundedBuffer* bb) {
+    if (bb) {
+        pthread_mutex_destroy(&bb->lock);
+        sem_destroy(&bb->readSemaphore);
+        sem_destroy(&bb->writeSemaphore);
+        free(bb->buffer);
+        free(bb);
+    }
 }

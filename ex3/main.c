@@ -32,7 +32,7 @@ typedef struct ForDispatcher {
     BoundedBuffer** producers;
     BoundedBuffer* sportBuf;
     BoundedBuffer* newsBuf;
-    BoundedBuffer* wheatherBuf;
+    BoundedBuffer* weatherBuf;
     int producersCount;
 } ForDispatcher;
 
@@ -52,16 +52,17 @@ void* screenManagerFunc(void* arg) {
     while (1) {
         char *message;
         message = removeFromBuffer(buf);
+
         if (strcmp(message, FINISH_MSG) == 0) {
             doneCount++;
             if (doneCount == 3) break;
             continue;
         }
         printf("%s\n", message);
+        free(message);
     }
     
-    printf(FINISH_MSG);
-    printf("\n");
+    printf("%s\n", FINISH_MSG);
     pthread_exit(EXIT_SUCCESS);
 }
 
@@ -72,7 +73,8 @@ void* coEditor(void* arg) {
     AllBufs* allBufs = (AllBufs*)arg;
     BoundedBuffer* changeBuf = allBufs->buf1;
     BoundedBuffer* toScreenBuf = allBufs->buf2;
-
+    free(allBufs);
+    
     // transfer messages from changeBuf to toScreenBuf
     while (1) {
         char *message;
@@ -92,23 +94,23 @@ void* producer(void* arg) {
     int sport = 0, news = 0, wheather = 0;
     ForProducer *forProd = (ForProducer*)arg;
     BoundedBuffer* buffer = forProd->buf;
-    //srand(time(NULL));
     int mes = forProd->messages;
+    free(forProd);
 
     for (int i = 0; i < mes; i++) {
         char* message = (char*)malloc(MAX_MSG_LEN * sizeof(char));
         int r = rand() % 3;
         switch(r) {
             case 0:
-                snprintf(message, MAX_MSG_LEN, "Producer %d SPORTS %d", buffer->id, sport);
+                snprintf(message, MAX_MSG_LEN, "producer %d SPORTS %d", buffer->id, sport);
                 sport++;
                 break;
             case 1:
-                snprintf(message, MAX_MSG_LEN, "Producer %d NEWS %d", buffer->id, news);
+                snprintf(message, MAX_MSG_LEN, "producer %d NEWS %d", buffer->id, news);
                 news++;
                 break;
             case 2:
-                snprintf(message, MAX_MSG_LEN, "Producer %d WEATHER %d", buffer->id, wheather);
+                snprintf(message, MAX_MSG_LEN, "producer %d WEATHER %d", buffer->id, wheather);
                 wheather++;
                 break;
             default:
@@ -130,37 +132,31 @@ void* dispatcherFunc(void* arg) {
     BoundedBuffer** producersBufs = allTheBufs->producers;
     BoundedBuffer* sportBuf = allTheBufs->sportBuf;
     BoundedBuffer* newsBuf = allTheBufs->newsBuf;
-    BoundedBuffer* wheatherBuf = allTheBufs->wheatherBuf;
+    BoundedBuffer* weatherBuf = allTheBufs->weatherBuf;
     //int doneCount = 0;
 
-while (1) {
-        int allProducersDone = 1; // Assume done until we find an active one
+    while (1) {
+        // Assume done until we find an active one
+        int allProducersDone = 1; 
 
         for (int i = 0; i < allTheBufs->producersCount; i++) {
-            // Even if marked done, we must check if there are leftover messages in the buffer
-            if (producersBufs[i]->isDone) {
-                // If done AND empty, skip. If done but has items, we must process them.
-                if (isBufferEmpty(producersBufs[i])) { 
-                   continue; 
-                }
-            } else {
-                allProducersDone = 0; // Found an active producer
-            }
-
-            // USE NON-BLOCKING REMOVE
+            if (producersBufs[i]->isDone && isBufferEmpty(producersBufs[i])) continue; 
+            
+            // Found an active producer
+            allProducersDone = 0; 
+            
             char* message = tryRemoveFromBuffer(producersBufs[i]);
             
             if (message != NULL) {
                 if (strcmp(message, FINISH_MSG) == 0) {
                     producersBufs[i]->isDone = 1;
                 } else {
-                    // SAFER PARSING
                     if (strstr(message, "SPORTS")) {
                         insertToBuffer(sportBuf, message);
                     } else if (strstr(message, "NEWS")) {
                         insertToBuffer(newsBuf, message);
                     } else if (strstr(message, "WEATHER")) {
-                        insertToBuffer(wheatherBuf, message);
+                        insertToBuffer(weatherBuf, message);
                     }
                 }
             }
@@ -170,12 +166,15 @@ while (1) {
         if (allProducersDone) {
             insertToBuffer(sportBuf, FINISH_MSG);
             insertToBuffer(newsBuf, FINISH_MSG);
-            insertToBuffer(wheatherBuf, FINISH_MSG);
+            insertToBuffer(weatherBuf, FINISH_MSG);
             return NULL;
         }
     }
 }
 
+/**
+ * Parses the config file and fills the ConfigData struct
+ */
 void parseConfigFile(FILE *file, ConfigData* data) {
     char *line = NULL;
     ssize_t read; 
@@ -276,6 +275,7 @@ int main(int argc, char* argv[]) {
     // INitialize
     dataOfConfig->numOfProducers = 0;
     parseConfigFile(file, dataOfConfig);
+
     int producersCount = dataOfConfig->numOfProducers;
     BoundedBuffer** producersBufs = (BoundedBuffer**) malloc(sizeof(BoundedBuffer*) * producersCount);
     for (int i = 0; i < producersCount; i++) {
@@ -297,10 +297,12 @@ int main(int argc, char* argv[]) {
     ForDispatcher* forDispatcher = (ForDispatcher*) malloc(sizeof(ForDispatcher));
     forDispatcher->newsBuf = newsBuf;
     forDispatcher->producers = producersBufs;
-    forDispatcher->wheatherBuf = weatherBuf;
+    forDispatcher->weatherBuf = weatherBuf;
     forDispatcher->sportBuf = sportBuf;  
     forDispatcher->producersCount = producersCount; 
+
     pthread_create(&dispatcher, NULL, dispatcherFunc, (void*)forDispatcher);
+
     for (int i = 0; i < producersCount; i++) {
         ForProducer *forProd = malloc(sizeof(ForProducer));
         forProd->buf = producersBufs[i];
@@ -325,5 +327,22 @@ int main(int argc, char* argv[]) {
 
     pthread_create(&screenManager, NULL, screenManagerFunc, (void*)toScreenBuf);
     pthread_join(screenManager, NULL);
+
+    // memory cleanup
+    for(int i = 0; i < producersCount; i++) 
+        destroyBuffer(producersBufs[i]);
+
+    free(producersBufs);
+
+    destroyBuffer(sportBuf);
+    destroyBuffer(newsBuf);
+    destroyBuffer(weatherBuf);
+    destroyBuffer(toScreenBuf);
+
+    free(forDispatcher);
+    if (dataOfConfig->producersInfo != NULL) 
+        free(dataOfConfig->producersInfo); 
+    free(dataOfConfig);
+
     return 0;
 }
