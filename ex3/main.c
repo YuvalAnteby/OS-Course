@@ -99,6 +99,10 @@ void* producer(void* arg) {
 
     for (int i = 0; i < mes; i++) {
         char* message = (char*)malloc(MAX_MSG_LEN * sizeof(char));
+        if (message == NULL) {
+            printf("Failed to allocate memory for message\n");
+            pthread_exit(EXIT_FAILURE);
+        }
         int r = rand() % 3;
         switch(r) {
             case 0:
@@ -205,6 +209,11 @@ void parseConfigFile(FILE *file, ConfigData* data) {
     // Allocate memory for producers info
     fseek(file, 0, SEEK_SET);
     data->producersInfo = (SizeAndMessages*) malloc(sizeof(SizeAndMessages) * data->numOfProducers);
+    if (data->producersInfo == NULL) {
+        printf("Failed to allocate memory for producers info\n");
+        fclose(file);
+        exit(EXIT_FAILURE);
+    }
     int currentProducerIndex = 0;
 
     // Get producers info
@@ -278,6 +287,13 @@ int main(int argc, char* argv[]) {
 
     int producersCount = dataOfConfig->numOfProducers;
     BoundedBuffer** producersBufs = (BoundedBuffer**) malloc(sizeof(BoundedBuffer*) * producersCount);
+    if (producersBufs == NULL) {
+        printf("Failed to allocate memory\n");
+        if (dataOfConfig->producersInfo != NULL) 
+            free(dataOfConfig->producersInfo); 
+        free(dataOfConfig);
+        return 1;
+    }
     for (int i = 0; i < producersCount; i++) {
         producersBufs[i] = 
         initBuffer(
@@ -295,6 +311,20 @@ int main(int argc, char* argv[]) {
 
     // Start dispatcher thread
     ForDispatcher* forDispatcher = (ForDispatcher*) malloc(sizeof(ForDispatcher));
+    if (forDispatcher == NULL) {
+        printf("Failed to allocate memory\n");
+        for(int i = 0; i < producersCount; i++) 
+            destroyBuffer(producersBufs[i]);
+        free(producersBufs);
+        destroyBuffer(sportBuf);
+        destroyBuffer(newsBuf);
+        destroyBuffer(weatherBuf);
+        destroyBuffer(toScreenBuf);
+        if (dataOfConfig->producersInfo != NULL) 
+            free(dataOfConfig->producersInfo); 
+        free(dataOfConfig);
+        return 1;
+    }
     forDispatcher->newsBuf = newsBuf;
     forDispatcher->producers = producersBufs;
     forDispatcher->weatherBuf = weatherBuf;
@@ -305,14 +335,30 @@ int main(int argc, char* argv[]) {
 
     for (int i = 0; i < producersCount; i++) {
         ForProducer *forProd = malloc(sizeof(ForProducer));
+        if (forProd == NULL) {
+            printf("Failed to allocate memory\n");
+            exit(EXIT_FAILURE);
+        }
         forProd->buf = producersBufs[i];
         forProd->messages = dataOfConfig->producersInfo[i].numOfMessages;
         pthread_create(&producers[i], NULL, producer, (void*)forProd);
     }
     pthread_t coEditors[3], screenManager;
     AllBufs* allbufs1 = (AllBufs*) malloc(sizeof(AllBufs));
+    if (allbufs1 == NULL) {
+        printf("Failed to allocate memory\n");
+        exit(EXIT_FAILURE);
+    }
     AllBufs* allbufs2 = (AllBufs*) malloc(sizeof(AllBufs));
+    if (allbufs2 == NULL) {
+        printf("Failed to allocate memory\n");
+        exit(EXIT_FAILURE);
+    }
     AllBufs* allbufs3 = (AllBufs*) malloc(sizeof(AllBufs));
+    if (allbufs3 == NULL) {
+        printf("Failed to allocate memory\n");
+        exit(EXIT_FAILURE);
+    }
 
     // Start co editor threads
     allbufs1->buf1 = sportBuf;
