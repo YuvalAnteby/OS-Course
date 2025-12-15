@@ -6,14 +6,14 @@ TARGET = ex3.out
 
 all: $(TARGET)
 
-$(TARGET): main.o bounded_buffer.o
-	$(CC) $(CFLAGS) -o $(TARGET) main.o bounded_buffer.o
+$(TARGET): main.o BoundedBuffer.o
+	$(CC) $(CFLAGS) -o $(TARGET) main.o BoundedBuffer.o
 
-main.o: main.c bounded_buffer.h
+main.o: main.c BoundedBuffer.h
 	$(CC) $(CFLAGS) -c main.c
 
-boundedbuffer.o: bounded_buffer.c bounded_buffer.h
-	$(CC) $(CFLAGS) -c bounded_buffer.c
+BoundedBuffer.o: BoundedBuffer.c BoundedBuffer.h
+	$(CC) $(CFLAGS) -c BoundedBuffer.c
 
 clean:
 	rm -f *.o $(TARGET)
