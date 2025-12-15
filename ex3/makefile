@@ -1,17 +1,21 @@
-CC = g++
-CFLAGS = -std=c++11 -pthread -Wall -g
+# Yuval Anteby 212152896
+
+CC = gcc
+CFLAGS = -Wall -pthread
 TARGET = ex3.out
-SRCS = main.cpp BoundedBuffer.cpp
-OBJS = $(SRCS:.cpp=.o)
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
+$(TARGET): main.o bounded_buffer.o
+	$(CC) $(CFLAGS) -o $(TARGET) main.o bounded_buffer.o
 
-# This rule says: to turn a .cpp into a .o, use this command
-.cpp.o:
-	$(CC) $(CFLAGS) -c $< -o $@
+main.o: main.c bounded_buffer.h
+	$(CC) $(CFLAGS) -c main.c
+
+boundedbuffer.o: bounded_buffer.c bounded_buffer.h
+	$(CC) $(CFLAGS) -c bounded_buffer.c
 
 clean:
-	rm -f $(TARGET) *.o
+	rm -f *.o $(TARGET)
+
+.PHONY: all clean
