@@ -142,7 +142,8 @@ void* dispatcherFunc(void* arg) {
     while (1) {
         // Assume done until we find an active one
         int allProducersDone = 1; 
-
+        int didSomething = 0;
+        
         for (int i = 0; i < allTheBufs->producersCount; i++) {
             if (producersBufs[i]->isDone && isBufferEmpty(producersBufs[i])) continue; 
             
@@ -152,6 +153,7 @@ void* dispatcherFunc(void* arg) {
             char* message = tryRemoveFromBuffer(producersBufs[i]);
             
             if (message != NULL) {
+                didSomething = 1;
                 if (strcmp(message, FINISH_MSG) == 0) {
                     producersBufs[i]->isDone = 1;
                 } else {
@@ -173,6 +175,9 @@ void* dispatcherFunc(void* arg) {
             insertToBuffer(weatherBuf, FINISH_MSG);
             return NULL;
         }
+
+        // If we didn't do anything, sleep for 10ms to let producers catch up
+        if (didSomething == 0) usleep(10000); 
     }
 }
 
