@@ -101,7 +101,7 @@ void* producer(void* arg) {
         char* message = (char*)malloc(MAX_MSG_LEN * sizeof(char));
         if (message == NULL) {
             printf("Failed to allocate memory for message\n");
-            pthread_exit(EXIT_FAILURE);
+            pthread_exit((void*)EXIT_FAILURE);
         }
         int r = rand() % 3;
         switch(r) {
