@@ -1,0 +1,9 @@
+# compiled object files
+*.o
+*.a
+copytree
+
+# tests related files
+/test_src
+/test_dest
+*output.txt
